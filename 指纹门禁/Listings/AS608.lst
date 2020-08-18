@@ -1,0 +1,386 @@
+C51 COMPILER V9.60.0.0   AS608                                                             08/16/2020 23:48:32 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE AS608
+OBJECT MODULE PLACED IN .\Objects\AS608.obj
+COMPILER INVOKED BY: D:\KEI5_C51\C51\BIN\C51.EXE AS608\AS608.c LARGE OPTIMIZE(8,SPEED) BROWSE INCDIR(.\IIC;.\OLED;.\JIDI
+                    -ANQI;.\KEY;.\UART;.\AS608;.\USER) DEBUG OBJECTEXTEND PRINT(.\Listings\AS608.lst) TABS(2) OBJECT(.\Objects\AS608.obj)
+
+line level    source
+
+   1          
+   2          #include "AS608.h"
+   3          
+   4          volatile uchar res[32];
+   5          uint finger_id = 0;
+   6          
+   7          /*Ïà¹ØÐ­Òé*/
+   8          
+   9          code uchar Get_Device[10] ={0x01,0x00,0x07,0x13,0x00,0x00,0x00,0x00,0x00,0x1b};//¿ÚÁîÑéÖ¤
+  10          code uchar Pack_Head[6] = {0xEF,0x01,0xFF,0xFF,0xFF,0xFF};  //Ð­Òé°üÍ·
+  11          code uchar Get_Img[6] = {0x01,0x00,0x03,0x01,0x00,0x05};    //»ñµÃÖ¸ÎÆÍ¼Ïñ
+  12          code uchar Get_Templete_Count[6] ={0x01,0x00,0x03,0x1D,0x00,0x21 }; //»ñµÃÄ£°æ×ÜÊý
+  13          code uchar Search[11]={0x01,0x00,0x08,0x04,0x01,0x00,0x00,0x03,0xE7,0x00,0xF8}; //ËÑË÷Ö¸ÎÆËÑË÷·¶Î§0 - 999,
+             -Ê¹ÓÃBUFFER1ÖÐµÄÌØÕ÷ÂëËÑË÷
+  14          code uchar Search_0_9[11]={0x01,0x00,0x08,0x04,0x01,0x00,0x00,0x00,0x13,0x00,0x21}; //ËÑË÷0-9ºÅÖ¸ÎÆ
+  15          code uchar Img_To_Buffer1[7]={0x01,0x00,0x04,0x02,0x01,0x00,0x08}; //½«Í¼Ïñ·ÅÈëµ½BUFFER1
+  16          code uchar Img_To_Buffer2[7]={0x01,0x00,0x04,0x02,0x02,0x00,0x09}; //½«Í¼Ïñ·ÅÈëµ½BUFFER2
+  17          code uchar Reg_Model[6]={0x01,0x00,0x03,0x05,0x00,0x09}; //½«BUFFER1¸úBUFFER2ºÏ³ÉÌØÕ÷Ä£°æ
+  18          code uchar Delete_All_Model[6]={0x01,0x00,0x03,0x0d,0x00,0x11};//É¾³ýÖ¸ÎÆÄ£¿éÀïËùÓÐµÄÄ£°æ
+  19          
+  20          volatile uchar Delete_Model[10]={0x01,0x00,0x07,0x0c,0x00,0x00,0x00,0x01,0x00,0x15};//É¾³ýÖ¸ÎÆÄ£¿éÀïÄ³Ò»¸ö
+             -Ö¸ÎÆ
+  21          volatile uchar  Save_Finger[9]={0x01,0x00,0x06,0x06,0x01,0x00,0x0B,0x00,0x19};//½«BUFFER1ÖÐµÄÌØÕ÷Âë´æ·Åµ½Ö
+             -¸¶¨µÄÎ»ÖÃ
+  22          
+  23          
+  24          void AS_delayms(uint ms)
+  25          {
+  26   1        uint i,j;
+  27   1        
+  28   1        for(i = ms; i > 0; i--)
+  29   1        {
+  30   2            for(j = 110; j > 0; j--);
+  31   2        }
+  32   1      }
+  33          
+  34          /*°üÍ·*/
+  35          void AS_Send_Head()
+  36          {
+  37   1        uint i;
+  38   1        
+  39   1        for(i= 0; i < 6; i++)
+  40   1        {
+  41   2          UART_SendByte(Pack_Head[i]);
+  42   2        }
+  43   1      }
+  44          
+  45          /*Éè±¸ÑéÖ¤*/
+  46          void AS_Send_PWD()
+  47          {
+  48   1        uint i;
+  49   1        
+  50   1        AS_Send_Head();
+  51   1        for(i= 0; i < 10; i++)
+C51 COMPILER V9.60.0.0   AS608                                                             08/16/2020 23:48:32 PAGE 2   
+
+  52   1        {
+  53   2          UART_SendByte(Get_Device[i]);
+  54   2        }
+  55   1      
+  56   1      }
+  57          
+  58          /*½ÓÊÕ·µ»ØÊý¾Ý*/
+  59          void AS_Receive(uint len)
+  60          {
+  61   1        uint i;
+  62   1        for(i= 0; i < len; i++)
+  63   1        {
+  64   2          res[i] = UART_GetByte();
+  65   2        }
+  66   1      }
+  67          
+  68          /*»ñÈ¡Í¼ÐÎ*/
+  69          void AS_GetImage()
+  70          {
+  71   1        uint i;
+  72   1        
+  73   1        AS_Send_Head();
+  74   1        for(i= 0; i < 6; i++)
+  75   1        {
+  76   2          UART_SendByte(Get_Img[i]);
+  77   2        }
+  78   1      }
+  79          
+  80          /*½«Í¼ÏñÉú³ÉÌØÕ÷·Åµ½BUFFER1*/
+  81          void AS_GenChar_Buff1()
+  82          {
+  83   1        uint i;
+  84   1        
+  85   1        AS_Send_Head();
+  86   1        for(i= 0; i < 7; i++)
+  87   1        {
+  88   2          UART_SendByte(Img_To_Buffer1[i]);
+  89   2        }
+  90   1      }
+  91          
+  92          /*½«Í¼ÏñÉú³ÉÌØÕ÷·Åµ½BUFFER2*/
+  93          void AS_GenChar_Buff2()
+  94          {
+  95   1        uint i;
+  96   1        
+  97   1        AS_Send_Head();
+  98   1        for(i= 0; i < 7; i++)
+  99   1        {
+ 100   2          UART_SendByte(Img_To_Buffer2[i]);
+ 101   2        }
+ 102   1      }
+ 103          
+ 104          /*ºÏ²¢Éú³ÉÌØÕ÷*/
+ 105          void AS_RegModel()
+ 106          {
+ 107   1        uint i;
+ 108   1        
+ 109   1        AS_Send_Head();
+ 110   1        for(i= 0; i < 6; i++)
+ 111   1        {
+ 112   2          UART_SendByte(Reg_Model[i]);
+ 113   2        }
+C51 COMPILER V9.60.0.0   AS608                                                             08/16/2020 23:48:32 PAGE 3   
+
+ 114   1      }
+ 115          
+ 116          /*ËÑË÷Ö¸ÎÆ*/
+ 117          void AS_Search()
+ 118          {
+ 119   1        uint i;
+ 120   1        
+ 121   1        AS_Send_Head();
+ 122   1        for(i= 0; i < 11; i++)
+ 123   1        {
+ 124   2          UART_SendByte(Search[i]);
+ 125   2        }
+ 126   1      }
+ 127          
+ 128          /*»ñÈ¡Ö¸ÎÆÄ£°åÊýÁ¿*/
+ 129          uint AS_GetNum()
+ 130          {
+ 131   1        uint dat;
+ 132   1        uint i;
+ 133   1        AS_Send_Head();
+ 134   1      //  UART_SendStr(Get_Templete_Count);
+ 135   1        for(i= 0; i < 6; i++)
+ 136   1        {
+ 137   2          UART_SendByte(Get_Templete_Count[i]);
+ 138   2        }
+ 139   1        AS_Receive(14);
+ 140   1        
+ 141   1        dat = res[10] * 256 + res[11];
+ 142   1        
+ 143   1        return dat;
+ 144   1      }
+ 145          
+ 146          /*É¾³ýÒ»¸öÖ¸ÎÆ*/
+ 147          void AS_Delete(uint Store_Id)
+ 148          {
+ 149   1        uchar i;
+ 150   1        unsigned long temp = 0;
+ 151   1        
+ 152   1        Delete_Model[4] = (Store_Id & 0xFF00) >> 8;   //¸ßÎ»
+ 153   1        Delete_Model[5] = Store_Id & 0x00FF;   //µÍÎ»
+ 154   1        
+ 155   1        for(i = 0; i < 8; i++)
+ 156   1        {
+ 157   2          temp += Delete_Model[i];
+ 158   2        }
+ 159   1        
+ 160   1        Delete_Model[8] = (temp & 0x00FF00) >> 8;   //¸ßÎ»
+ 161   1        Delete_Model[9] = temp & 0x0000FF;   //µÍÎ»
+ 162   1        
+ 163   1        AS_Send_Head();
+ 164   1        
+ 165   1        for(i= 0; i < 10; i++)
+ 166   1        {
+ 167   2          UART_SendByte(Delete_Model[i]);
+ 168   2        }
+ 169   1      }
+ 170          
+ 171          /*Çå¿ÕÖ¸ÎÆ¿â*/
+ 172          void AS_Empty()
+ 173          {
+ 174   1        uint i;
+ 175   1        AS_Send_Head();
+C51 COMPILER V9.60.0.0   AS608                                                             08/16/2020 23:48:32 PAGE 4   
+
+ 176   1        
+ 177   1        for(i= 0; i < 6; i++)
+ 178   1        {
+ 179   2          UART_SendByte(Delete_All_Model[i]);
+ 180   2        }
+ 181   1      }
+ 182          
+ 183          /*±£´æÖ¸ÎÆ*/
+ 184          void AS_StoreChar(uint Store_Id)
+ 185          {
+ 186   1        uchar i;
+ 187   1        uint temp = 0;
+ 188   1        
+ 189   1        Save_Finger[5] = Store_Id / 256;
+ 190   1        Save_Finger[6] = Store_Id % 256;
+ 191   1        
+ 192   1        for(i = 0; i < 7; i++)            //¼ÆËãÐ£ÑéºÍ
+ 193   1        {
+ 194   2          temp = temp + Save_Finger[i];
+ 195   2        }
+ 196   1        Save_Finger[7]=temp / 256;
+ 197   1        Save_Finger[8]=temp % 256;
+ 198   1        
+ 199   1        AS_Send_Head();
+ 200   1        
+ 201   1        for(i= 0; i < 9; i++)
+ 202   1        {
+ 203   2          UART_SendByte(Save_Finger[i]);
+ 204   2        }
+ 205   1      }
+ 206          
+ 207          /*¼ì²éÉè±¸*/
+ 208          bit Check_Dev()
+ 209          {
+ 210   1        bit stat = 0;
+ 211   1        
+ 212   1        AS_Send_PWD();
+ 213   1        AS_Receive(12);
+ 214   1        
+ 215   1        if(res[9] == 0)
+ 216   1        {
+ 217   2          stat = 1;   //¼ìÑéµ½Éè±¸
+ 218   2        }
+ 219   1        
+ 220   1        return stat;
+ 221   1      }
+ 222          
+ 223          /*Ôö¼ÓÖ¸ÎÆ*/
+ 224          bit AS_addFinger()
+ 225          {
+ 226   1        bit stat = 0;
+ 227   1        finger_id = AS_GetNum();
+ 228   1        
+ 229   1        OLED_ShowMiko();
+ 230   1        do{
+ 231   2          AS_GetImage();
+ 232   2          AS_Receive(12);
+ 233   2          
+ 234   2          if(res[9] == 0)  //»ñÈ¡µ½Ö¸ÎÆ
+ 235   2          {
+ 236   3            break;
+ 237   3          }
+C51 COMPILER V9.60.0.0   AS608                                                             08/16/2020 23:48:32 PAGE 5   
+
+ 238   2        }while(1);
+ 239   1        
+ 240   1        AS_delayms(100);
+ 241   1        AS_GenChar_Buff1();
+ 242   1        AS_Receive(12);
+ 243   1        
+ 244   1      //  //²éÑ¯ÊÇ·ñ´æÔÚÖ¸ÎÆ
+ 245   1      //  AS_Search();
+ 246   1      //  AS_Receive(16);
+ 247   1      //  
+ 248   1      //  if(res[9] == 0)
+ 249   1      //  {
+ 250   1      //    stat = 1;
+ 251   1      //    
+ 252   1      //    OLED_ShowMikoExit();
+ 253   1      //    AS_delayms(1000);
+ 254   1      //    
+ 255   1      //    return 1;
+ 256   1      //  }
+ 257   1        
+ 258   1        if(res[9] == 0)
+ 259   1        {
+ 260   2          AS_delayms(100);
+ 261   2          OLED_ShowMiko();
+ 262   2          do{
+ 263   3            AS_GetImage();
+ 264   3            AS_Receive(12);
+ 265   3          
+ 266   3            if(res[9] == 0)  //»ñÈ¡µ½Ö¸ÎÆ
+ 267   3            {
+ 268   4              break;
+ 269   4            }
+ 270   3          }while(1);
+ 271   2          
+ 272   2          AS_delayms(100);
+ 273   2          AS_GenChar_Buff2();
+ 274   2          AS_Receive(12);
+ 275   2          
+ 276   2          AS_RegModel();
+ 277   2          AS_Receive(12);
+ 278   2          
+ 279   2          AS_StoreChar(finger_id);
+ 280   2          AS_Receive(12);
+ 281   2          AS_delayms(100);
+ 282   2          
+ 283   2          if(res[9] == 0)
+ 284   2          {
+ 285   3            stat = 1;
+ 286   3          }
+ 287   2        }
+ 288   1        
+ 289   1        return stat;
+ 290   1      }
+ 291          
+ 292          /*ËÑË÷Ö¸ÎÆ*/
+ 293          bit AS_searchFinger()
+ 294          {
+ 295   1        bit stat = 0;
+ 296   1        
+ 297   1        OLED_ShowMiko();
+ 298   1        
+ 299   1        finger_id = 0;
+C51 COMPILER V9.60.0.0   AS608                                                             08/16/2020 23:48:32 PAGE 6   
+
+ 300   1        
+ 301   1        do{
+ 302   2          AS_GetImage();
+ 303   2          AS_Receive(12);
+ 304   2          
+ 305   2          if(res[9] == 0)  //»ñÈ¡µ½Ö¸ÎÆ
+ 306   2          {
+ 307   3            break;
+ 308   3          }
+ 309   2        }while(1);
+ 310   1        
+ 311   1        AS_delayms(100);
+ 312   1        AS_GenChar_Buff1();
+ 313   1        AS_Receive(12);
+ 314   1        
+ 315   1        AS_Search();
+ 316   1        AS_Receive(16);
+ 317   1        
+ 318   1        if(res[9] == 0)
+ 319   1        {
+ 320   2          stat = 1;
+ 321   2          finger_id = res[10] * 256 + res[11];
+ 322   2        }
+ 323   1        return stat;
+ 324   1      }
+ 325          
+ 326          /*É¾³ýÖ¸ÎÆ*/
+ 327          bit del_Finger()
+ 328          {
+ 329   1        bit sta = 0;
+ 330   1        uint i = 0;
+ 331   1        
+ 332   1        OLED_ShowMiko();
+ 333   1        do
+ 334   1        {
+ 335   2          sta = AS_searchFinger();
+ 336   2          i++;
+ 337   2        }while(sta == 0 && i < 100);
+ 338   1        
+ 339   1        sta = 0;
+ 340   1        AS_Delete(finger_id);
+ 341   1        AS_Receive(12);
+ 342   1        
+ 343   1        if(res[9] == 0)
+ 344   1        {
+ 345   2          sta = 1;
+ 346   2        }
+ 347   1        
+ 348   1        return sta;
+ 349   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1232    ----
+   CONSTANT SIZE    =     76    ----
+   XDATA SIZE       =     53      30
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----       4
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

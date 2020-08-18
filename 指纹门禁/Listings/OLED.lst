@@ -1,0 +1,398 @@
+C51 COMPILER V9.60.0.0   OLED                                                              08/16/2020 23:48:32 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE OLED
+OBJECT MODULE PLACED IN .\Objects\OLED.obj
+COMPILER INVOKED BY: D:\KEI5_C51\C51\BIN\C51.EXE OLED\OLED.c LARGE OPTIMIZE(8,SPEED) BROWSE INCDIR(.\IIC;.\OLED;.\JIDIAN
+                    -QI;.\KEY;.\UART;.\AS608;.\USER) DEBUG OBJECTEXTEND PRINT(.\Listings\OLED.lst) TABS(2) OBJECT(.\Objects\OLED.obj)
+
+line level    source
+
+   1          
+   2          #include "OLED.h"
+   3          #include "Font.h"
+   4          
+   5          //延迟
+   6          void OLED_delay(uint ms)
+   7          {
+   8   1        uint i;
+   9   1        while(ms--)
+  10   1        {
+  11   2          for(i = 110; i > 0; i--);
+  12   2        }
+  13   1      
+  14   1      }
+  15          
+  16          //初始化
+  17          void OLED_Init()
+  18          {
+  19   1        OLED_delay(500);
+  20   1        Write_IIC_Command(0xae);//--turn off oled panel
+  21   1        Write_IIC_Command(0x00);//---set low column address
+  22   1        Write_IIC_Command(0x10);//---set high column address
+  23   1        Write_IIC_Command(0x40);//--set start line address  Set Mapping RAM Display Start Line (0x00~0x3F)
+  24   1        Write_IIC_Command(0x81);//--set contrast control register
+  25   1        Write_IIC_Command(0xcf); // Set SEG Output Current Brightness
+  26   1        Write_IIC_Command(0xa1);//--Set SEG/Column Mapping     0xa0???? 0xa1??
+  27   1        Write_IIC_Command(0xc8);//Set COM/Row Scan Direction   0xc0???? 0xc8??
+  28   1        Write_IIC_Command(0xa6);//--set normal display
+  29   1        Write_IIC_Command(0xa8);//--set multiplex ratio(1 to 64)
+  30   1        Write_IIC_Command(0x3f);//--1/64 duty
+  31   1        Write_IIC_Command(0xd3);//-set display offset Shift Mapping RAM Counter (0x00~0x3F)
+  32   1        Write_IIC_Command(0x00);//-not offset
+  33   1        Write_IIC_Command(0xd5);//--set display clock divide ratio/oscillator frequency
+  34   1        Write_IIC_Command(0x80);//--set divide ratio, Set Clock as 100 Frames/Sec
+  35   1        Write_IIC_Command(0xd9);//--set pre-charge period
+  36   1        Write_IIC_Command(0xf1);//Set Pre-Charge as 15 Clocks & Discharge as 1 Clock
+  37   1        Write_IIC_Command(0xda);//--set com pins hardware configuration
+  38   1        Write_IIC_Command(0x12);
+  39   1        Write_IIC_Command(0xdb);//--set vcomh
+  40   1        Write_IIC_Command(0x40);//Set VCOM Deselect Level
+  41   1        Write_IIC_Command(0x20);//-Set Page Addressing Mode (0x00/0x01/0x02)
+  42   1        Write_IIC_Command(0x02);//
+  43   1        Write_IIC_Command(0x8d);//--set Charge Pump enable/disable
+  44   1        Write_IIC_Command(0x14);//--set(0x10) disable
+  45   1        Write_IIC_Command(0xa4);// Disable Entire Display On (0xa4/0xa5)
+  46   1        Write_IIC_Command(0xa6);// Disable Inverse Display On (0xa6/a7) 
+  47   1        Write_IIC_Command(0xaf);//--turn on oled panel   
+  48   1      
+  49   1        OLED_Fill(0x00);  //清屏
+  50   1        OLED_SetPos(0,0);   
+  51   1      }
+  52          
+  53          //设置光标
+  54          void OLED_SetPos(uchar x, uchar y)
+C51 COMPILER V9.60.0.0   OLED                                                              08/16/2020 23:48:32 PAGE 2   
+
+  55          {
+  56   1        //行显示
+  57   1        Write_IIC_Command(0xb0+y);
+  58   1        Write_IIC_Command(((x&0xf0) >> 4) | 0x10);//高位
+  59   1        Write_IIC_Command((x&0x0f) | 0x01);  //低位
+  60   1      }
+  61          
+  62          //清屏
+  63          void OLED_Fill(uchar bmp_dat)
+  64          {
+  65   1        unsigned char y,x;
+  66   1        for(y = 0; y < 8; y++)
+  67   1        {
+  68   2            Write_IIC_Command(0xb0+y);
+  69   2            Write_IIC_Command(0x01);
+  70   2            Write_IIC_Command(0x10);
+  71   2            for(x = 0; x < 128; x++)
+  72   2              Write_IIC_Data(bmp_dat);
+  73   2        }
+  74   1      }
+  75          
+  76          //请输入6位密码
+  77          void OLED_ShowWordMessage()
+  78          {
+  79   1        uint i,j;
+  80   1        OLED_Fill(0);  //清屏
+  81   1        for(i = 0; i < 7; i++)
+  82   1        {
+  83   2          OLED_SetPos(18 * i, 2);
+  84   2          
+  85   2          for(j = 0; j < 16; j++)
+  86   2          {//前16位
+  87   3            Write_IIC_Data(wordMessage[2 * i][j]);
+  88   3          }
+  89   2          
+  90   2          OLED_SetPos(18 * i, 3);
+  91   2          //后16位
+  92   2          for(j = 0; j < 16; j++)
+  93   2          {
+  94   3            Write_IIC_Data(wordMessage[2 * i + 1][j]);
+  95   3          }
+  96   2        }
+  97   1      }
+  98          
+  99          //旧Or新 密码
+ 100          void OLED_ShowNewOrOld(unsigned int num)
+ 101          {
+ 102   1        uint i,j;
+ 103   1        
+ 104   1        OLED_Fill(0);
+ 105   1        
+ 106   1        OLED_SetPos(35, 2);
+ 107   1        
+ 108   1        //显示新或者旧
+ 109   1        for(j = 0; j < 16; j++)
+ 110   1        {//前16位
+ 111   2          Write_IIC_Data(newAndold[num][j]);
+ 112   2        }
+ 113   1        OLED_SetPos(35, 3);
+ 114   1        //后16位
+ 115   1        for(j = 0; j < 16; j++)
+ 116   1        {
+C51 COMPILER V9.60.0.0   OLED                                                              08/16/2020 23:48:32 PAGE 3   
+
+ 117   2          Write_IIC_Data(newAndold[num][j]);
+ 118   2        }
+ 119   1        //密码
+ 120   1        for(i = 0; i < 2; i++)
+ 121   1        {
+ 122   2          OLED_SetPos(35 * (i + 2), 2);
+ 123   2          
+ 124   2          for(j = 0; j < 16; j++)
+ 125   2          {//前16位
+ 126   3            Write_IIC_Data(errorMessage[2 * i][j]);
+ 127   3          }
+ 128   2          
+ 129   2          OLED_SetPos(35 * (i + 2), 3);
+ 130   2          //后16位
+ 131   2          for(j = 0; j < 16; j++)
+ 132   2          {
+ 133   3            Write_IIC_Data(errorMessage[2 * i + 1][j]);
+ 134   3          }
+ 135   2        }
+ 136   1      }
+ 137          
+ 138          //密码错误
+ 139          void OLED_ShowErrorMessage()
+ 140          {
+ 141   1        uint i,j;
+ 142   1        OLED_Fill(0); //清屏
+ 143   1      
+ 144   1        for(i = 0; i < 4; i++)
+ 145   1        {
+ 146   2          OLED_SetPos(25 * (i + 1), 2);
+ 147   2          
+ 148   2          for(j = 0; j < 16; j++)
+ 149   2          {//前16位
+ 150   3            Write_IIC_Data(errorMessage[2 * i][j]);
+ 151   3          }
+ 152   2          
+ 153   2          OLED_SetPos(25 * (i + 1), 3);
+ 154   2          //后16位
+ 155   2          for(j = 0; j < 16; j++)
+ 156   2          {
+ 157   3            Write_IIC_Data(errorMessage[2 * i + 1][j]);
+ 158   3          }
+ 159   2        }
+ 160   1      }
+ 161          
+ 162          //欢迎大哥
+ 163          void OLED_ShowWel()
+ 164          {
+ 165   1        uint i,j;
+ 166   1        OLED_Fill(0);  //清屏
+ 167   1        for(i = 0; i < 4; i++)  //第几个字
+ 168   1        {
+ 169   2          OLED_SetPos(25 * (i + 1), 2);
+ 170   2          
+ 171   2          for(j = 0; j < 16; j++)
+ 172   2          {//前16位
+ 173   3            Write_IIC_Data(entryMessage[2 * i][j]);
+ 174   3          }
+ 175   2          
+ 176   2          OLED_SetPos(25 * (i + 1), 3);
+ 177   2          //后16位
+ 178   2          for(j = 0; j < 16; j++)
+C51 COMPILER V9.60.0.0   OLED                                                              08/16/2020 23:48:32 PAGE 4   
+
+ 179   2          {
+ 180   3            Write_IIC_Data(entryMessage[2 * i + 1][j]);
+ 181   3          }
+ 182   2        }
+ 183   1      }
+ 184          
+ 185          //显示数字
+ 186          void OLED_ShowNum(uint no,uchar num)
+ 187          {
+ 188   1        uint j;
+ 189   1        
+ 190   1        OLED_SetPos(18 * no, 4);
+ 191   1        for(j = 0; j < 16; j++)
+ 192   1        {//前16位
+ 193   2          Write_IIC_Data(Number[num][j]);
+ 194   2        }
+ 195   1          
+ 196   1        OLED_SetPos(18 * no, 5);
+ 197   1        //后16位
+ 198   1        for(j = 0; j < 16; j++)
+ 199   1        {
+ 200   2          Write_IIC_Data(Number[num][j]);
+ 201   2        }
+ 202   1      }
+ 203          
+ 204          //显示*
+ 205          void OLED_ShowHidenWord(uint no)
+ 206          {
+ 207   1        uint j;
+ 208   1        
+ 209   1        OLED_SetPos(18 * no, 4);
+ 210   1        for(j = 0; j < 16; j++)
+ 211   1        {//前16位
+ 212   2          Write_IIC_Data(maskMessage[0][j]);
+ 213   2        }
+ 214   1          
+ 215   1        OLED_SetPos(18 * no, 5);
+ 216   1        //后16位
+ 217   1        for(j = 0; j < 16; j++)
+ 218   1        {
+ 219   2          Write_IIC_Data(maskMessage[1][j]);
+ 220   2        }
+ 221   1      }
+ 222            
+ 223          //清除*
+ 224          void OLED_clearHidenWord(uint no)
+ 225          {
+ 226   1        unsigned char i,j;
+ 227   1        
+ 228   1        for(i = 4; i < 6; i++)
+ 229   1        {
+ 230   2          OLED_SetPos(18 * no, i);
+ 231   2          
+ 232   2          for(j = 18 * no; j < 18 * no + 16; j++)
+ 233   2          {
+ 234   3              Write_IIC_Data(0);
+ 235   3          }
+ 236   2        }
+ 237   1      }
+ 238          
+ 239          //请按下手指
+ 240          void OLED_ShowMiko()
+C51 COMPILER V9.60.0.0   OLED                                                              08/16/2020 23:48:32 PAGE 5   
+
+ 241          {
+ 242   1        uint i,j;
+ 243   1        OLED_Fill(0x00);
+ 244   1        for( i = 0; i < 5; i++)  //第几个字
+ 245   1        {
+ 246   2          OLED_SetPos(18 * i, 2);
+ 247   2          
+ 248   2          for(j = 0; j < 16; j++)
+ 249   2          {//前16位
+ 250   3            Write_IIC_Data(mikorMessage[2 * i][j]);
+ 251   3          }
+ 252   2          
+ 253   2          OLED_SetPos(18 * i, 3);
+ 254   2          //后16位
+ 255   2          for(j = 0; j < 16; j++)
+ 256   2          {
+ 257   3            Write_IIC_Data(mikorMessage[2 * i + 1][j]);
+ 258   3          }
+ 259   2        }
+ 260   1      } 
+ 261          
+ 262          //修改成功
+ 263          void OLED_ShowChange()
+ 264          {
+ 265   1        uint i,j;
+ 266   1        OLED_Fill(0);  //清屏
+ 267   1        for(i = 0; i < 4; i++)
+ 268   1        {
+ 269   2          OLED_SetPos(25 * (i + 1), 2);
+ 270   2          
+ 271   2          for(j = 0; j < 16; j++)
+ 272   2          {//前16位
+ 273   3            Write_IIC_Data(ChangeMessage[2 * i][j]);
+ 274   3          }
+ 275   2          
+ 276   2          OLED_SetPos(25 * (i + 1), 3);
+ 277   2          //后16位
+ 278   2          for(j = 0; j < 16; j++)
+ 279   2          {
+ 280   3            Write_IIC_Data(ChangeMessage[2 * i + 1][j]);
+ 281   3          }
+ 282   2        }
+ 283   1      }
+ 284          //录入成功
+ 285          void OLED_ShowMikoOk()
+ 286          {
+ 287   1        uint i,j;
+ 288   1        OLED_Fill(0);  //清屏
+ 289   1        for(i = 1; i < 5; i++)
+ 290   1        {
+ 291   2          OLED_SetPos(25 * (i + 1), 2);
+ 292   2          
+ 293   2          for(j = 0; j < 16; j++)
+ 294   2          {//前16位
+ 295   3            Write_IIC_Data(OkMessage[2 * i][j]);
+ 296   3          }
+ 297   2          
+ 298   2          OLED_SetPos(25 * (i + 1), 3);
+ 299   2          //后16位
+ 300   2          for(j = 0; j < 16; j++)
+ 301   2          {
+ 302   3            Write_IIC_Data(OkMessage[2 * i + 1][j]);
+C51 COMPILER V9.60.0.0   OLED                                                              08/16/2020 23:48:32 PAGE 6   
+
+ 303   3          }
+ 304   2        }
+ 305   1      }
+ 306            
+ 307          //超级密码
+ 308          void OLED_ShowSuper()
+ 309          {
+ 310   1        uint i,j;
+ 311   1        OLED_Fill(0);  //清屏
+ 312   1        for(i = 0; i < 4; i++)
+ 313   1        {
+ 314   2          OLED_SetPos(25 * (i + 1), 2);
+ 315   2          
+ 316   2          for(j = 0; j < 16; j++)
+ 317   2          {//前16位
+ 318   3            Write_IIC_Data(super[2 * i][j]);
+ 319   3          }
+ 320   2          
+ 321   2          OLED_SetPos(25 * (i + 1), 3);
+ 322   2          //后16位
+ 323   2          for(j = 0; j < 16; j++)
+ 324   2          {
+ 325   3            Write_IIC_Data(super[2 * i + 1][j]);
+ 326   3          }
+ 327   2        }
+ 328   1      }
+ 329          
+ 330          
+ 331          //void OLED_ShowMikoExit();
+ 332          //普通选择界面
+ 333          void OLED_Showfirst()
+ 334          {
+ 335   1        unsigned char i,j;
+ 336   1        
+ 337   1        for(i = 0; i < 8; i++)
+ 338   1        {
+ 339   2          OLED_SetPos(0, i);
+ 340   2          
+ 341   2          for(j = 0; j < 128; j++)
+ 342   2          {
+ 343   3              Write_IIC_Data(Firstword[i * 128 + j]);
+ 344   3          }
+ 345   2        }
+ 346   1      }
+ 347          
+ 348          //超级选择界面
+ 349          void OLED_ShowSuperF()
+ 350          {
+ 351   1        unsigned char i,j;
+ 352   1        
+ 353   1        for(i = 0; i < 8; i++)
+ 354   1        {
+ 355   2          OLED_SetPos(0, i);
+ 356   2          
+ 357   2          for(j = 0; j < 128; j++)
+ 358   2          {
+ 359   3              Write_IIC_Data(superShow[i * 128 + j]);
+ 360   3          }
+ 361   2        }
+ 362   1      }
+
+
+C51 COMPILER V9.60.0.0   OLED                                                              08/16/2020 23:48:32 PAGE 7   
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2979    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----      55
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

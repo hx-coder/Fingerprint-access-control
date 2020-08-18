@@ -1,0 +1,357 @@
+C51 COMPILER V9.60.0.0   OPERATE                                                           08/16/2020 23:48:32 PAGE 1   
+
+
+C51 COMPILER V9.60.0.0, COMPILATION OF MODULE OPERATE
+OBJECT MODULE PLACED IN .\Objects\Operate.obj
+COMPILER INVOKED BY: D:\KEI5_C51\C51\BIN\C51.EXE USER\Operate.c LARGE OPTIMIZE(8,SPEED) BROWSE INCDIR(.\IIC;.\OLED;.\JID
+                    -IANQI;.\KEY;.\UART;.\AS608;.\USER) DEBUG OBJECTEXTEND PRINT(.\Listings\Operate.lst) TABS(2) OBJECT(.\Objects\Operate.obj
+                    -)
+
+line level    source
+
+   1          
+   2          #include "Operate.h"
+   3          
+   4          
+   5          unsigned char PWD[] = {1,2,3,4,5,6},PWD_Sta = 1;
+   6          unsigned char inputPWD[6] = {0},tempPWD[6] = {'-','-','-','-','-','-'};
+   7          unsigned char superPWD[6] = {6,5,4,3,2,1};
+   8          
+   9          sbit LED = P2^3; 
+  10          
+  11          /*延迟ms*/
+  12          void delayms(unsigned int ms)
+  13          {
+  14   1        unsigned int i,j;
+  15   1        for(i = ms; i > 0; i--)
+  16   1        {
+  17   2          for(j = 110; j > 0; j--);
+  18   2        }
+  19   1      } 
+  20          
+  21          
+  22          /*保存密码*/                                
+  23          void PWD_Save()
+  24          {
+  25   1      
+  26   1        At24c02Write(1,PWD[0]);
+  27   1        delayms(1);
+  28   1        At24c02Write(2,PWD[1]);
+  29   1        delayms(1);
+  30   1        At24c02Write(3,PWD[2]);
+  31   1        delayms(1);
+  32   1        At24c02Write(4,PWD[3]);
+  33   1        delayms(1);
+  34   1        At24c02Write(5,PWD[4]);
+  35   1        delayms(1);
+  36   1        At24c02Write(6,PWD[5]);
+  37   1        delayms(1);
+  38   1      }
+  39          
+  40          /*读取密码*/
+  41          void PWD_Read()
+  42          {
+  43   1        unsigned char first_load = 0;
+  44   1        first_load = At24c02Read(0);
+  45   1        
+  46   1        if(first_load == 1)
+  47   1        {
+  48   2          PWD[0] = At24c02Read(1);
+  49   2          PWD[1] = At24c02Read(2);
+  50   2          PWD[2] = At24c02Read(3);
+  51   2          PWD[3] = At24c02Read(4);
+  52   2          PWD[4] = At24c02Read(5);
+  53   2          PWD[5] = At24c02Read(6);
+C51 COMPILER V9.60.0.0   OPERATE                                                           08/16/2020 23:48:32 PAGE 2   
+
+  54   2          
+  55   2        }
+  56   1        else
+  57   1        {
+  58   2          At24c02Write(0,1);
+  59   2          delayms(1);
+  60   2          PWD_Save();
+  61   2        }
+  62   1      }
+  63          
+  64          /*输入密码*/
+  65          //0-9输入  14取消一位 15退出
+  66          bit PWD_Input(uchar *pwd)
+  67          {
+  68   1        unsigned int keyValue = 16, i = 0;
+  69   1      
+  70   1        for(i = 0; i < 6; i++,pwd++)
+  71   1        {
+  72   2          while((keyValue > 9 && keyValue < 14) || keyValue == 16)
+  73   2          {
+  74   3            keyValue = KeyScan();
+  75   3          }
+  76   2          
+  77   2          if(keyValue == 14)  // * 取消一位
+  78   2          {
+  79   3            if(i == 0)
+  80   3            {
+  81   4              return 0;
+  82   4            }
+  83   3            OLED_clearHidenWord(i - 1);   //消除*号
+  84   3            pwd -= 2;
+  85   3            i -= 2;
+  86   3          }
+  87   2          else if(keyValue == 15)   //取消
+  88   2          {
+  89   3            return 0;
+  90   3          }
+  91   2          else
+  92   2          {
+  93   3            OLED_ShowNum(i,keyValue); 
+  94   3            delayms(100);
+  95   3            OLED_ShowHidenWord(i);
+  96   3            
+  97   3            *pwd = keyValue;
+  98   3            }
+  99   2            keyValue = 16;
+ 100   2        }
+ 101   1        return 1;
+ 102   1      }
+ 103          
+ 104          /*初始化密码*/
+ 105          void init_PWD(uchar *pwd,uchar ch)
+ 106          {
+ 107   1        unsigned char i;
+ 108   1        
+ 109   1        for(i = 0; i < 6; i++,pwd++)
+ 110   1        {
+ 111   2          *pwd = ch;
+ 112   2        }
+ 113   1      }
+ 114          
+ 115          /*密码校验*/
+C51 COMPILER V9.60.0.0   OPERATE                                                           08/16/2020 23:48:32 PAGE 3   
+
+ 116          bit PWD_Check(uchar *pwd,uchar *inPwd)
+ 117          {
+ 118   1        unsigned char i;
+ 119   1        bit confirm = 1;
+ 120   1        
+ 121   1        for(i = 0; i < 6; i++,pwd++,inPwd++)
+ 122   1        {
+ 123   2          if(*pwd != *inPwd)
+ 124   2          {
+ 125   3            confirm = 0;
+ 126   3          }
+ 127   2        }
+ 128   1        
+ 129   1        return confirm;
+ 130   1      }
+ 131          
+ 132          /*修改密码*/
+ 133          void PWD_Change()
+ 134          {
+ 135   1        unsigned int i = 0;
+ 136   1        bit sta = 0;
+ 137   1        
+ 138   1        OLED_ShowNewOrOld(1);
+ 139   1        sta = PWD_Input(inputPWD);  
+ 140   1        //是否退出
+ 141   1        if(sta == 0)
+ 142   1        {
+ 143   2          return;
+ 144   2        }
+ 145   1        
+ 146   1        sta = PWD_Check(PWD,inputPWD);  //校验
+ 147   1        init_PWD(inputPWD,'0');   //清0
+ 148   1        if(sta == 0)  //原密码输入错误
+ 149   1        {
+ 150   2          OLED_ShowErrorMessage();
+ 151   2          return;
+ 152   2        }
+ 153   1        
+ 154   1        OLED_ShowNewOrOld(0);
+ 155   1        sta = PWD_Input(inputPWD);  
+ 156   1        //是否退出
+ 157   1        if(sta == 0)
+ 158   1        {
+ 159   2          init_PWD(inputPWD,'0'); //清0
+ 160   2          return;
+ 161   2        }
+ 162   1        
+ 163   1        for(i = 0; i < 6; i++)
+ 164   1        {
+ 165   2          PWD[i] = inputPWD[i];
+ 166   2        }
+ 167   1        PWD_Save();
+ 168   1        init_PWD(inputPWD,'0'); //清0
+ 169   1        OLED_ShowChange();  //提示信息
+ 170   1      }
+ 171          
+ 172          
+ 173          /*   密码处理     */
+ 174          void dealPWD(uchar *pwd)
+ 175          {
+ 176   1        bit sta = 0;
+ 177   1        uint keyValue = 16;
+C51 COMPILER V9.60.0.0   OPERATE                                                           08/16/2020 23:48:32 PAGE 4   
+
+ 178   1        bit pwd_check = 0;
+ 179   1        
+ 180   1        sta = PWD_Input(inputPWD);   //密码输入
+ 181   1        if(sta == 0)
+ 182   1        {
+ 183   2          init_PWD(inputPWD,'0');
+ 184   2          return;
+ 185   2        } 
+ 186   1        
+ 187   1        pwd_check = PWD_Check(pwd,inputPWD); //校验
+ 188   1        if(pwd_check == 1)
+ 189   1        {
+ 190   2            OLED_ShowWel();
+ 191   2            LED = 0;
+ 192   2            JI_Open();
+ 193   2        }
+ 194   1        else
+ 195   1        {
+ 196   2          OLED_ShowErrorMessage();
+ 197   2        } 
+ 198   1        init_PWD(inputPWD,'0');  //初始化输入密码
+ 199   1      }
+ 200          
+ 201          
+ 202          /*指纹登陆*/
+ 203          bit search_Finger()
+ 204          {
+ 205   1        bit sta = 0;
+ 206   1        uint i = 0;
+ 207   1        do{
+ 208   2          sta = AS_searchFinger();
+ 209   2          i++;
+ 210   2        }while(sta == 0 && i < 10);
+ 211   1        
+ 212   1        if(sta == 1)
+ 213   1        {
+ 214   2          OLED_ShowWel();
+ 215   2          LED = 0;
+ 216   2          JI_Open();
+ 217   2        }
+ 218   1        
+ 219   1        return sta;
+ 220   1      }
+ 221          
+ 222          /*添加指纹*/
+ 223          bit add_Finger()
+ 224          {
+ 225   1        bit sta = 0;
+ 226   1        uint i = 0;
+ 227   1        do{
+ 228   2          i++;
+ 229   2          sta = AS_addFinger();
+ 230   2          
+ 231   2        }while(sta == 0 && i < 10);
+ 232   1        
+ 233   1        if(sta == 1)
+ 234   1        {
+ 235   2          OLED_ShowMikoOk();
+ 236   2        }
+ 237   1        
+ 238   1        return sta;
+ 239   1      }
+C51 COMPILER V9.60.0.0   OPERATE                                                           08/16/2020 23:48:32 PAGE 5   
+
+ 240          
+ 241          
+ 242          /*超级管理输入*/ 
+ 243          bit Super_Input()
+ 244          {
+ 245   1        bit sta = 0;
+ 246   1        
+ 247   1        sta = PWD_Input(inputPWD);
+ 248   1        
+ 249   1        if(sta == 1)
+ 250   1        {
+ 251   2          sta = PWD_Check(superPWD,inputPWD);
+ 252   2        }
+ 253   1        init_PWD(inputPWD,'0');
+ 254   1        
+ 255   1        return sta;
+ 256   1      }
+ 257          
+ 258          /*超级管理页面处理*/
+ 259          void Super_deal()
+ 260          {
+ 261   1        unsigned int keyValue = 16;
+ 262   1        bit sta = 0;
+ 263   1        
+ 264   1        do{
+ 265   2          OLED_ShowSuperF();
+ 266   2          keyValue = KeyScan();
+ 267   2          sta = 0;
+ 268   2          
+ 269   2          if(keyValue == 1)     //添加指纹
+ 270   2          {
+ 271   3              sta = add_Finger();
+ 272   3          }
+ 273   2          else if(keyValue ==  2)   //删除指纹
+ 274   2          {
+ 275   3      //      while(sta == 0)
+ 276   3      //      {
+ 277   3      //    //    sta = del_Finger();
+ 278   3      //      }
+ 279   3            AS_Empty();
+ 280   3          }
+ 281   2          else if(keyValue == 3)    //修改密码
+ 282   2          {
+ 283   3            PWD_Change();
+ 284   3          }
+ 285   2        }while(keyValue != 15);     // # 退出
+ 286   1      
+ 287   1      }
+ 288          
+ 289          //按键响应
+ 290          void door_Select()
+ 291          {
+ 292   1        bit sta = 0;
+ 293   1        unsigned int keyValue = 16;
+ 294   1        
+ 295   1        LED = 1;
+ 296   1        OLED_Showfirst();
+ 297   1        keyValue = KeyScan();
+ 298   1        if(keyValue == 10)   // A 输入密码
+ 299   1        {
+ 300   2            OLED_ShowWordMessage();
+ 301   2            dealPWD(PWD);   
+C51 COMPILER V9.60.0.0   OPERATE                                                           08/16/2020 23:48:32 PAGE 6   
+
+ 302   2        }
+ 303   1        else if(keyValue == 12)   // C 指纹输入
+ 304   1        {
+ 305   2          sta = search_Finger();
+ 306   2        }
+ 307   1        else if(keyValue == 13)    // D 进入超级管理员
+ 308   1        {
+ 309   2          OLED_ShowSuper();
+ 310   2            
+ 311   2          sta = Super_Input();
+ 312   2          if(sta == 1)
+ 313   2          {
+ 314   3              LED = 0;
+ 315   3              Super_deal();
+ 316   3          }
+ 317   2          else
+ 318   2          {
+ 319   3              OLED_ShowErrorMessage();
+ 320   3          }
+ 321   2        }
+ 322   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1158    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     25      28
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----       9
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

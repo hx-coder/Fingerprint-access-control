@@ -1,0 +1,13 @@
+".\Objects\STARTUP.obj",
+".\Objects\main.obj",
+".\Objects\Operate.obj",
+".\Objects\Font.obj",
+".\Objects\OLED.obj",
+".\Objects\OLED_IIC.obj",
+".\Objects\IIC.obj",
+".\Objects\AS608.obj",
+".\Objects\Uart.obj",
+".\Objects\Key.obj",
+".\Objects\JIDIANQI.obj" 
+TO ".\Objects\finger" 
+PRINT(".\Listings\finger.m51")
